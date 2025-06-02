@@ -131,7 +131,8 @@ def update_tabela_sheets(_service, df_atualizado):
              df_to_save['ENTREGA GESTOR'] = pd.to_datetime(df_to_save['ENTREGA GESTOR']).dt.strftime('%d/%m/%Y').fillna('')
 
         # Garante que todas as colunas sejam string para evitar erros de tipo na API
-        df_to_save = df_to_save.astype(str).replace({'NaT': '', 'nan': '', 'None': ''})
+        df_to_save[COLUNA_ASSINATURA] = 'FALSE' 
+        df_to_save[COLUNA_DEVOLUCAO] = 'FALSE' 
         data_to_write = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
         body = {"values": data_to_write}
 
@@ -206,9 +207,7 @@ def show_pcm_page_1():
             now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             edited_df.loc[indices_para_atualizar, COLUNA_GESTOR_ASSINATURA] = now_str
 
-            # O ADM salva o DataFrame editado inteiro.
-            # É CRUCIAL que o ADM preencha GESTOR_RESP em novas linhas.
-            # Adicionar validação aqui seria bom.
+
             if edited_df[COLUNA_GESTOR_RESP].isnull().any() or (edited_df[COLUNA_GESTOR_RESP] == '').any():
                 st.error("ERRO: Existem linhas sem 'GESTOR_RESP' definido. Preencha antes de salvar.")
             else:
@@ -231,6 +230,7 @@ def show_pcm_page_2():
         st.stop()
 
     st.title("CONTROLE DE NOTAS :lower_left_fountain_pen:")
+    
     #add_logout_button() # Adiciona botão de sair na sidebar
 
     if st.button("🔄 Recarregar Dados da Planilha!"):
@@ -267,6 +267,7 @@ def show_pcm_page_2():
                 mudancas = edited_df[COLUNA_DEVOLUCAO] & ~df_filtrado_usuario.loc[edited_df.index, COLUNA_DEVOLUCAO]
                 now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                 edited_df.loc[mudancas, "DATA DEVOLUCAO"] = now_str
+                edited_df.loc[mudancas & edited_df["DATA DEVOLUCAO"].isna(), "DATA DEVOLUCAO"] = now_str
                 df_original.update(edited_df)
                 
                 if update_tabela_sheets(service, df_original): # Salva o DF *COMPLETO*

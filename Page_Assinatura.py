@@ -82,15 +82,19 @@ def get_tabela_sheets(_service):
                 df[COLUNA_ASSINATURA] = df[COLUNA_ASSINATURA].map({'TRUE': True, 'VERDADEIRO': True}).fillna(False).astype(bool)
             else:
                 st.error(f"Coluna '{COLUNA_ASSINATURA}' não encontrada!")
-                return None
+                
 
-            if COLUNA_GESTOR_ASSINATURA not in df.columns:
-                 df[COLUNA_GESTOR_ASSINATURA] = ''
+            #if COLUNA_GESTOR_ASSINATURA not in df.columns:
+             #    df[COLUNA_GESTOR_ASSINATURA] = ''
 
             if 'VALOR' in df.columns:
                  df['VALOR'] = pd.to_numeric(df['VALOR'].str.replace(',', '.', regex=False), errors='coerce').fillna(0)
             if 'DT VENC' in df.columns:
                 df['DT VENC'] = pd.to_datetime(df['DT VENC'], errors='coerce', dayfirst=True)
+            if 'ENTREGA GESTOR' in df.columns:
+                df['ENTREGA GESTOR'] = pd.to_datetime(df['ENTREGA GESTOR'], errors='coerce', dayfirst=True)
+            if 'GESTORASSINATURA' in df.columns:
+                df['GESTORASSINATURA'] = pd.to_datetime(df['GESTORASSINATURA'], errors='coerce', dayfirst=True)
 
             return df
     except Exception as err:
@@ -108,7 +112,8 @@ def update_tabela_sheets(_service, df_atualizado):
         if 'DT VENC' in df_to_save.columns:
              df_to_save['DT VENC'] = df_to_save['DT VENC'].dt.strftime('%d/%m/%Y').fillna('')
 
-        df_to_save = df_to_save.astype(str).replace({'NaT': '', 'nan': ''})
+        #df_to_save = df_to_save.astype(str).replace({'NaT': '', 'nan': ''})     
+        df_to_save[COLUNA_ASSINATURA] = 'FALSE'     
         data_to_write = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
         body = {"values": data_to_write}
 
@@ -155,13 +160,17 @@ def show_pcm_page():
         edited_df = st.data_editor(
             df_filtrado_usuario, # Usa o DF filtrado pelo usuário
             disabled=COLUNAS_DESABILITADAS, # Desabilita as colunas certas
-            #num_rows="dynamic", # Permite adicionar/remover linhas
             key=f"editor_{logged_in_user}",
             use_container_width=True,
             column_config={
                 COLUNA_ASSINATURA: st.column_config.CheckboxColumn("Assinar?", default=False),
+                "GESTOR_RESP" : st.column_config.TextColumn("Gestor", max_chars=30),
+                "FORNECEDOR" : st.column_config.TextColumn("Fornecedor", max_chars=30),
+                "N NF" : st.column_config.TextColumn("Nr Nf", max_chars=30),
                 "VALOR": st.column_config.NumberColumn("Valor (R$)", format="%.2f"),
                 "DT VENC": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
+                "ENTREGA GESTOR": st.column_config.DateColumn("Entrega", format="DD/MM/YYYY"),
+                "GESTORASSINATURA": st.column_config.DateColumn("Assinatura", format="DD/MM/YYYY HH:MM "),
             }
         )
 
@@ -176,25 +185,12 @@ def show_pcm_page():
                 # e como quer mesclar. Usar .update() é bom para modificar.)
 
                 # Atualiza GESTORASSINATURA nas linhas que foram marcadas AGORA
-                mudancas = edited_df[COLUNA_ASSINATURA] & ~df_filtrado_usuario.loc[edited_df.index, COLUNA_ASSINATURA]
+                mudancas = edited_df[COLUNA_ASSINATURA] & ~df_filtrado_usuario.loc[edited_df.index, COLUNA_ASSINATURA] 
                 now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                edited_df.loc[mudancas, COLUNA_GESTOR_ASSINATURA] = now_str
+                edited_df.loc[mudancas & edited_df[COLUNA_GESTOR_ASSINATURA].isna(), COLUNA_GESTOR_ASSINATURA] = now_str
                 
-                # Atualiza o DataFrame original com base nos índices
-                # Cuidado: Se 'num_rows="dynamic"' adiciona linhas, elas não terão
-                # índice no df_original. Uma estratégia mais segura pode ser
-                # reconstruir o df_original ou fazer um merge cuidadoso.
-                # Por simplicidade, vamos usar 'update' assumindo que os índices
-                # principais se mantêm.
                 df_original.update(edited_df)
                 
-                # Para novas linhas (se houver), precisaríamos concatenar.
-                # Esta parte precisaria ser mais elaborada se 'dynamic' for usado para adicionar.
-                # Se 'dynamic' for só para DELETAR, precisamos remover do df_original.
-                # **SIMPLIFICAÇÃO:** Vamos assumir que 'dynamic' não é usado ou
-                # que a atualização principal é a modificação de checkboxes.
-                # Se você adiciona/remove linhas, a lógica de salvamento precisa
-                # ser mais robusta.
 
                 if update_tabela_sheets(service, df_original): # Salva o DF *COMPLETO*
                     st.success("As alterações foram salvas com sucesso!")

@@ -170,16 +170,21 @@ def show_pcm_page():
                 df_original[df_original['GESTOR_RESP']==option1]
 
 
+    st.markdown("### :green[Novo Gráficos à caminho  🛺]")
 
     df_fig1 = df_sem_data.iloc[:,4].value_counts().reset_index()
     df_fig1.columns = ["Gestor","Qtd"]
     
     fig1 = px.bar(data_frame=df_fig1,x="Gestor",y='Qtd',title="Notas não assinadas",template=template_3
-                ,color_discrete_sequence=["#164F2F"])
+                ,color_discrete_sequence=["#164F2F"], text_auto=True)
 
-    fig1.show()
+    fig2 = px.pie(data_frame=df_fig1, values='Qtd',names="Gestor",color_discrete_sequence=["#164F2F","#20864C","#186439","#31CA73"],title="Notas não assinadas")
 
-    fig1
+    pg1, pg2 = st.columns(2)
+
+    pg1.plotly_chart(fig1)
+    pg2.plotly_chart(fig2)  
+
 
 show_pcm_page()
 
