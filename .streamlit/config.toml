@@ -1,0 +1,8 @@
+[theme]
+primaryColor="#164F2F"
+backgroundColor="#F2ECE4"
+secondaryBackgroundColor="#437A5B"
+textColor="#102601"
+codeBackgroundColor = "monospace"
+font="sans-serif"
+#linkColor= "#164F2F"
