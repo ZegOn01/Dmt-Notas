@@ -119,7 +119,7 @@ def update_tabela_sheets(_service, df_atualizado):
         # Converte a coluna de assinatura para 'TRUE' ou 'FALSE' string
         if COLUNA_ASSINATURA in df_to_save.columns:
              df_to_save[COLUNA_ASSINATURA] = df_to_save[COLUNA_ASSINATURA].apply(lambda x: 'TRUE' if x else 'FALSE')
-
+        
         df_to_save[COLUNA_ASSINATURA] = 'FALSE'
         df_to_save = df_to_save.astype(str).replace({'NaT': '', 'nan': ''}) 
         
@@ -142,6 +142,7 @@ def show_pcm_page():
         st.stop()
 
     st.title("CONTROLE DE NOTAS :lower_left_fountain_pen:")
+    st.markdown("Marque na coluna **Assinar?** e no botão **Salvar Alterações** para Assinar")
     logged_in_user = st.session_state.get("logged_in_user", "Usuário Desconhecido")
     st.sidebar.success(f"Logado como: {logged_in_user}!")
     add_logout_button() # Adiciona botão de sair na sidebar
