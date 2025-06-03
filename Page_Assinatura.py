@@ -119,7 +119,8 @@ def update_tabela_sheets(_service, df_atualizado):
         # Converte a coluna de assinatura para 'TRUE' ou 'FALSE' string
         if COLUNA_ASSINATURA in df_to_save.columns:
              df_to_save[COLUNA_ASSINATURA] = df_to_save[COLUNA_ASSINATURA].apply(lambda x: 'TRUE' if x else 'FALSE')
-        
+
+        df_to_save[COLUNA_ASSINATURA] = 'FALSE'
         df_to_save = df_to_save.astype(str).replace({'NaT': '', 'nan': ''}) 
         
         data_to_write = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
