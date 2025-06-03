@@ -79,16 +79,12 @@ def get_tabela_sheets(_service):
             # --- Conversão de Tipos ---
             if COLUNA_ASSINATURA in df.columns:
                 df[COLUNA_ASSINATURA] = df[COLUNA_ASSINATURA].astype(str).str.upper()
-                df[COLUNA_ASSINATURA] = df[COLUNA_ASSINATURA].map({'TRUE': True, 'VERDADEIRO': True}).fillna(False).astype(bool)
+                df[COLUNA_ASSINATURA] = df[COLUNA_ASSINATURA].map({'TRUE': True, 'VERDADEIRO': True}).infer_objects(copy=False).fillna(False).astype(bool)
             else:
                 st.error(f"Coluna '{COLUNA_ASSINATURA}' não encontrada!")
                 
-
-            #if COLUNA_GESTOR_ASSINATURA not in df.columns:
-             #    df[COLUNA_GESTOR_ASSINATURA] = ''
-
             if 'VALOR' in df.columns:
-                 df['VALOR'] = pd.to_numeric(df['VALOR'].str.replace(',', '.', regex=False), errors='coerce').fillna(0)
+                df['VALOR'] = pd.to_numeric(df['VALOR'].str.replace(',', '.', regex=False), errors='coerce').fillna(0)
             if 'DT VENC' in df.columns:
                 df['DT VENC'] = pd.to_datetime(df['DT VENC'], errors='coerce', dayfirst=True)
             if 'ENTREGA GESTOR' in df.columns:
@@ -107,13 +103,25 @@ def update_tabela_sheets(_service, df_atualizado):
     try:
         sheet = _service.spreadsheets()
         df_to_save = df_atualizado.copy()
+        
+        # Converte as colunas de data/hora para string no formato correto
+        if 'DT VENC' in df_to_save.columns:
+            # Use .dt.strftime para Timestamps e lide com NaT para datas vazias
+            df_to_save['DT VENC'] = df_to_save['DT VENC'].dt.strftime('%d/%m/%Y').fillna('')
+        
+        if 'ENTREGA GESTOR' in df_to_save.columns:
+            df_to_save['ENTREGA GESTOR'] = df_to_save['ENTREGA GESTOR'].dt.strftime('%d/%m/%Y').fillna('')
+
+        if COLUNA_GESTOR_ASSINATURA in df_to_save.columns:
+            # Para esta coluna, como ela pode ser atualizada com hora, use um formato completo
+            df_to_save[COLUNA_GESTOR_ASSINATURA] = df_to_save[COLUNA_GESTOR_ASSINATURA].dt.strftime('%d/%m/%Y %H:%M:%S').fillna('')
+            
+        # Converte a coluna de assinatura para 'TRUE' ou 'FALSE' string
         if COLUNA_ASSINATURA in df_to_save.columns:
              df_to_save[COLUNA_ASSINATURA] = df_to_save[COLUNA_ASSINATURA].apply(lambda x: 'TRUE' if x else 'FALSE')
-        if 'DT VENC' in df_to_save.columns:
-             df_to_save['DT VENC'] = df_to_save['DT VENC'].dt.strftime('%d/%m/%Y').fillna('')
-
-        #df_to_save = df_to_save.astype(str).replace({'NaT': '', 'nan': ''})     
-        df_to_save[COLUNA_ASSINATURA] = 'FALSE'     
+        
+        df_to_save = df_to_save.astype(str).replace({'NaT': '', 'nan': ''}) 
+        
         data_to_write = [df_to_save.columns.tolist()] + df_to_save.values.tolist()
         body = {"values": data_to_write}
 
@@ -170,29 +178,31 @@ def show_pcm_page():
                 "VALOR": st.column_config.NumberColumn("Valor (R$)", format="%.2f"),
                 "DT VENC": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                 "ENTREGA GESTOR": st.column_config.DateColumn("Entrega", format="DD/MM/YYYY"),
-                "GESTORASSINATURA": st.column_config.DateColumn("Assinatura", format="DD/MM/YYYY HH:MM "),
+                "GESTORASSINATURA": st.column_config.DatetimeColumn("Assinatura", format="DD/MM/YYYY HH:mm:ss"), # Use DatetimeColumn
             }
         )
 
         if st.button("Salvar Alterações", type="primary"):
             try:
-                # *** Lógica de Salvamento Aprimorada ***
-                # Precisamos mesclar as alterações de 'edited_df' de volta em 'df_original'.
-                # 'edited_df' contém apenas as linhas do usuário, e pode ter linhas adicionadas/removidas.
+                # Identifica as mudanças na coluna de assinatura
+                # A condição mudancas deve ser aplicada ao df_original antes de ser atualizado
+                # para que os valores sejam aplicados apenas onde a assinatura foi marcada
                 
-                # 1. Identificar linhas modificadas/adicionadas no edited_df
-                # (A maneira exata depende se você permite adicionar/remover linhas
-                # e como quer mesclar. Usar .update() é bom para modificar.)
+                # Crie uma cópia do df_original para atualização
+                df_para_salvar = df_original.copy()
 
-                # Atualiza GESTORASSINATURA nas linhas que foram marcadas AGORA
-                mudancas = edited_df[COLUNA_ASSINATURA] & ~df_filtrado_usuario.loc[edited_df.index, COLUNA_ASSINATURA] 
-                now_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                edited_df.loc[mudancas & edited_df[COLUNA_GESTOR_ASSINATURA].isna(), COLUNA_GESTOR_ASSINATURA] = now_str
-                
-                df_original.update(edited_df)
-                
+                # Itera sobre as linhas do edited_df para aplicar as mudanças ao df_para_salvar
+                # Isso é mais robusto do que df_original.update(edited_df) quando há filtros
+                for index, row in edited_df.iterrows():
+                    # Verifica se a assinatura foi marcada e se a coluna GESTORASSINATURA está vazia
+                    if row[COLUNA_ASSINATURA] and pd.isna(df_para_salvar.loc[index, COLUNA_GESTOR_ASSINATURA]):
+                        df_para_salvar.loc[index, COLUNA_GESTOR_ASSINATURA] = datetime.now() # Atribui um objeto datetime
+                    
+                    # Atualiza o valor da coluna ASSINATURA no df_para_salvar
+                    df_para_salvar.loc[index, COLUNA_ASSINATURA] = row[COLUNA_ASSINATURA]
 
-                if update_tabela_sheets(service, df_original): # Salva o DF *COMPLETO*
+                # Agora, passa o DataFrame completo e atualizado para a função de salvamento
+                if update_tabela_sheets(service, df_para_salvar): # Salva o DF *COMPLETO*
                     st.success("As alterações foram salvas com sucesso!")
                     st.balloons()
                     get_tabela_sheets.clear()
